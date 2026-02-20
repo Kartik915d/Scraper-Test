@@ -18,8 +18,8 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException
 OPINION_URL = "https://elpais.com/opinion/"
 IMAGES_DIR = "article_images"
 
+# Safely downloads an image without crashing the scraper on failure.
 def download_image(url, filepath):
-    """Safely downloads an image without crashing the scraper on failure."""
     try:
         response = requests.get(url, stream=True, timeout=10)
         response.raise_for_status()
@@ -29,8 +29,8 @@ def download_image(url, filepath):
     except Exception as e:
         print(f"      [!] Image download failed: {e}")
 
+# Core logic: Scrapes El País, translates titles, and analyzes word frequency.
 def scrape_and_analyze(driver, session_name="Local"):
-    """Core logic: Scrapes El País, translates titles, and analyzes word frequency."""
     try:
         print(f"\n{'='*60}\n[{session_name}] STARTING EXECUTION\n{'='*60}")
         driver.get(OPINION_URL)
