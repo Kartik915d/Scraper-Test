@@ -2,6 +2,7 @@ import os
 import re
 import requests
 import textwrap
+import getpass
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from deep_translator import GoogleTranslator
@@ -16,11 +17,6 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException
 # ==========================================
 OPINION_URL = "https://elpais.com/opinion/"
 IMAGES_DIR = "article_images"
-
-# Fetch credentials from environment variables for security
-BROWSERSTACK_USERNAME = os.environ.get("BROWSERSTACK_USERNAME", "YOUR_USERNAME")
-BROWSERSTACK_ACCESS_KEY = os.environ.get("BROWSERSTACK_ACCESS_KEY", "YOUR_ACCESS_KEY")
-BS_HUB_URL = f"https://{"kartikdubey_G5n4I0"}:{"rUqEYqZufnLyyjsLJUtJ"}@hub-cloud.browserstack.com/wd/hub"
 
 def download_image(url, filepath):
     """Safely downloads an image without crashing the scraper on failure."""
@@ -161,28 +157,51 @@ def get_browserstack_environments():
         {"bstack:options": {"deviceName": "iPhone 14", "osVersion": "16", "sessionName": "iOS Safari"}, "browserName": "safari"}
     ]
 
-def run_remote_test(env_caps):
+def run_remote_test(env_caps, hub_url):
     """Initializes remote WebDriver and runs the scraping logic."""
     session_name = env_caps["bstack:options"]["sessionName"]
+    
     options = webdriver.ChromeOptions() 
     for key, value in env_caps.items():
         options.set_capability(key, value)
     
-    driver = webdriver.Remote(command_executor=BS_HUB_URL, options=options)
+    driver = webdriver.Remote(command_executor=hub_url, options=options)
     scrape_and_analyze(driver, session_name)
 
 # ==========================================
 # MAIN EXECUTION
 # ==========================================
 if __name__ == "__main__":
-    # 1. LOCAL EXECUTION
-    print("Initializing Local WebDriver...")
+    # 1. RUNTIME CREDENTIAL PROMPT (AT THE VERY BEGINNING)
+    print("\n" + "="*60)
+    print("BROWSERSTACK CONFIGURATION")
+    print("="*60)
+    print("Please enter your BrowserStack credentials for remote testing.")
+    print("(Press Enter to leave blank and run ONLY the local test)\n")
+    
+    bs_username = input("BrowserStack Username: ").strip()
+    
+    # Only ask for password if username was provided
+    if bs_username:
+        bs_access_key = getpass.getpass("BrowserStack Access Key (input will be hidden): ").strip() 
+        BS_HUB_URL = f"https://{bs_username}:{bs_access_key}@hub-cloud.browserstack.com/wd/hub"
+    else:
+        bs_access_key = ""
+        BS_HUB_URL = ""
+
+    # 2. LOCAL EXECUTION (Runs no matter what)
+    print("\nInitializing Local WebDriver...")
     local_options = webdriver.ChromeOptions()
     local_driver = webdriver.Chrome(options=local_options)
     scrape_and_analyze(local_driver, "Local")
 
-    # 2. BROWSERSTACK CLOUD EXECUTION (5 Parallel Threads)
-    print("\nInitializing BrowserStack Parallel Execution...")
-    envs = get_browserstack_environments()
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        executor.map(run_remote_test, envs)
+    # 3. BROWSERSTACK CLOUD EXECUTION (Only runs if credentials exist)
+    if bs_username and bs_access_key:
+        print("\nInitializing BrowserStack Parallel Execution...")
+        envs = get_browserstack_environments()
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            executor.map(lambda env: run_remote_test(env, BS_HUB_URL), envs)
+    else:
+        print("\n" + "="*60)
+        print("Skipping BrowserStack cloud execution (no credentials provided).")
+        print("="*60)
